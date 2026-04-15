@@ -1,0 +1,221 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>ACS – Warehouse Cooling Control System | Investor Demo</title>
+  <link rel="stylesheet" href="style.css" />
+
+  <!-- Three.js r128 (bundled locally) -->
+  <script src="lib/three.min.js"></script>
+  <script src="lib/OrbitControls.js"></script>
+  <!-- Chart.js 4 (bundled locally) -->
+  <script src="lib/chart.umd.min.js"></script>
+</head>
+<body>
+
+<div id="app">
+
+  <!-- ═══════════════════════════════════════════════════════════ HEADER -->
+  <header id="header">
+    <span class="header-logo">ACS</span>
+    <span class="header-title">Advanced Cold Storage Control System</span>
+    <div class="header-spacer"></div>
+    <span class="demo-badge">SIMULATION</span>
+    <span class="uptime-display">Uptime: <span id="uptime-display">00:00:00</span></span>
+    <div id="alert-badge">0</div>
+  </header>
+
+  <!-- ═══════════════════════════════════════════════════════ LEFT PANEL -->
+  <aside id="left-panel">
+
+    <!-- Mode Control -->
+    <div class="card">
+      <div class="card-title">⚙ Operation Mode</div>
+      <div class="mode-toggle">
+        <button class="mode-btn active" id="btn-auto">AUTO</button>
+        <button class="mode-btn" id="btn-manual">MANUAL</button>
+      </div>
+    </div>
+
+    <!-- Setpoints -->
+    <div class="card">
+      <div class="card-title">🎯 Setpoints</div>
+
+      <div class="setpoint-group">
+        <div class="setpoint-label">
+          <span class="setpoint-name">Temperature</span>
+          <div class="setpoint-values">
+            <span class="setpoint-current" id="val-avg-temp-display">—</span>
+            <span class="setpoint-target">→ <span id="val-setpoint-temp">4.0°C</span></span>
+          </div>
+        </div>
+        <input type="range" id="slider-temp" min="0" max="10" step="0.5" value="4" />
+      </div>
+
+      <div class="setpoint-group">
+        <div class="setpoint-label">
+          <span class="setpoint-name">Humidity</span>
+          <div class="setpoint-values">
+            <span class="setpoint-current" id="val-avg-hum-display">—</span>
+            <span class="setpoint-target">→ <span id="val-setpoint-hum">90.0%</span></span>
+          </div>
+        </div>
+        <input type="range" id="slider-hum" min="80" max="98" step="0.5" value="90" />
+      </div>
+    </div>
+
+    <!-- Statistics -->
+    <div class="card">
+      <div class="card-title">📊 Statistics</div>
+      <div class="stats-grid">
+        <div class="stat-item">
+          <div class="stat-value" id="stat-avg-temp">—</div>
+          <div class="stat-label">Avg Temp</div>
+        </div>
+        <div class="stat-item">
+          <div class="stat-value" id="stat-avg-hum">—</div>
+          <div class="stat-label">Avg Humidity</div>
+        </div>
+        <div class="stat-item">
+          <div class="stat-value" id="stat-min-temp">—</div>
+          <div class="stat-label">Min Temp</div>
+        </div>
+        <div class="stat-item">
+          <div class="stat-value" id="stat-max-temp">—</div>
+          <div class="stat-label">Max Temp</div>
+        </div>
+        <div class="stat-item">
+          <div class="stat-value" id="stat-min-hum">—</div>
+          <div class="stat-label">Min Humidity</div>
+        </div>
+        <div class="stat-item">
+          <div class="stat-value" id="stat-max-hum">—</div>
+          <div class="stat-label">Max Humidity</div>
+        </div>
+        <div class="stat-item">
+          <div class="stat-value" id="stat-alert-count" style="color:#ff1744">0</div>
+          <div class="stat-label">Active Alerts</div>
+        </div>
+        <div class="stat-item">
+          <div class="stat-value" style="color:#00e676">8</div>
+          <div class="stat-label">Sensors Online</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Door Control -->
+    <div class="card">
+      <div class="card-title">🚪 Loading Door</div>
+      <button class="door-btn door-closed" id="btn-door">🔒 OPEN DOOR</button>
+      <div class="door-status">
+        <span>Status: <strong id="door-status-text" style="color:#00e676">CLOSED</strong></span>
+        <span class="door-timer" id="door-timer"></span>
+      </div>
+    </div>
+
+    <!-- Hatch Controls -->
+    <div class="card">
+      <div class="card-title">💨 Cooling Hatches</div>
+      <div id="hatch-controls">
+        <!-- Dynamically generated -->
+      </div>
+    </div>
+
+  </aside>
+
+  <!-- ════════════════════════════════════════════════════ 3D CANVAS -->
+  <main id="canvas-container">
+    <canvas id="three-canvas"></canvas>
+
+    <div id="canvas-overlay">
+      <div class="canvas-info-tag">🏭 Onion Cold Storage Warehouse  20m × 10m × 5m</div>
+      <div class="canvas-info-tag" id="canvas-mode-tag">Mode: AUTO</div>
+    </div>
+
+    <div id="camera-hint">🖱 Drag to rotate · Scroll to zoom · Click sensors for details</div>
+  </main>
+
+  <!-- ══════════════════════════════════════════════════ RIGHT PANEL -->
+  <aside id="right-panel">
+
+    <!-- Sensor List -->
+    <div class="card">
+      <div class="card-title">🌡 Temperature &amp; Humidity Sensors</div>
+      <div id="sensor-list">
+        <!-- Dynamically generated -->
+      </div>
+    </div>
+
+    <!-- Temperature Gauge -->
+    <div class="card">
+      <div class="card-title">📈 Avg Temperature Gauge</div>
+      <div class="gauge-container">
+        <div class="gauge-wrapper">
+          <svg class="gauge-svg" id="gauge-svg" viewBox="0 0 120 70">
+            <!-- Background arc -->
+            <path d="M 10 60 A 50 50 0 0 1 110 60" fill="none" stroke="#1a2035" stroke-width="10"/>
+            <!-- Cold zone (green) -->
+            <path d="M 10 60 A 50 50 0 0 1 43 17" fill="none" stroke="#00e676" stroke-width="8" opacity="0.4"/>
+            <!-- Warning zone (yellow) -->
+            <path d="M 43 17 A 50 50 0 0 1 82 12" fill="none" stroke="#ffab00" stroke-width="8" opacity="0.4"/>
+            <!-- Hot zone (red) -->
+            <path d="M 82 12 A 50 50 0 0 1 110 60" fill="none" stroke="#ff1744" stroke-width="8" opacity="0.4"/>
+            <!-- Needle -->
+            <line id="gauge-needle" x1="60" y1="60" x2="60" y2="18"
+              stroke="#00e5ff" stroke-width="2" stroke-linecap="round"
+              transform="rotate(-90, 60, 60)"/>
+            <!-- Center dot -->
+            <circle cx="60" cy="60" r="4" fill="#00e5ff"/>
+          </svg>
+          <div class="gauge-value-display">
+            <div class="gauge-big-value" id="gauge-temp-val">—</div>
+            <div class="gauge-big-label">AVG TEMP</div>
+          </div>
+        </div>
+        <div class="gauge-ticks">
+          <span>-2°</span><span>0°</span><span>4°</span><span>8°</span><span>12°</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- Temperature Chart -->
+    <div class="card">
+      <div class="card-title">📉 Temperature History (all sensors)</div>
+      <div class="chart-container">
+        <canvas id="temp-chart"></canvas>
+      </div>
+    </div>
+
+    <!-- Humidity Chart -->
+    <div class="card">
+      <div class="card-title">💧 Humidity History (all sensors)</div>
+      <div class="chart-container">
+        <canvas id="hum-chart"></canvas>
+      </div>
+    </div>
+
+    <!-- Heat Map Toggle -->
+    <div class="card">
+      <div class="card-title">🌈 Visualization</div>
+      <button class="heatmap-btn" id="btn-heatmap">🌡 SHOW HEAT MAP</button>
+    </div>
+
+    <!-- Active Alerts -->
+    <div class="card">
+      <div class="card-title">⚠ Active Alerts</div>
+      <div class="alert-list" id="alert-list">
+        <div class="alerts-ok">✓ All systems normal</div>
+      </div>
+    </div>
+
+  </aside>
+</div>
+
+<!-- Sensor tooltip -->
+<div id="sensor-tooltip"></div>
+
+<script src="app.js"></script>
+
+</body>
+</html>
