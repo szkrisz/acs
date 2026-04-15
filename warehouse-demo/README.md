@@ -27,7 +27,7 @@ No build step, no backend, no installation required.
 ## 🏭 Features
 
 ### 3D Warehouse Visualization (Three.js)
-- Realistic 20m × 10m × 5m cold-storage warehouse
+- Realistic 20m × 10m × 6.25m cold-storage warehouse
 - Stacked wooden onion boxes in organized rows with aisles
 - **Cooling wall** (blue glow) with 5 controllable hatches showing open/closed state
 - **Loading door** that physically swings open/closed
