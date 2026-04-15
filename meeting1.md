@@ -5,7 +5,7 @@
 ### 1. A Partnerség Alapvető Koncepciója
 
 -   **Hibrid Kompetencia Modell:**  A projekt sikerét a technológiai innováció (Szoftver/AI) és az iparági szakértélem (Domain knowledge/Piaci tapasztalat) szinergiája határozza meg.
--   **Keresztszörzött Értékmegosztás:**
+-   **Kereszt értékmegosztás:**
     -   **Alapítók:**  Technológiai vízió, rendszertervezés, szoftverfejlesztés, operatív vezetés.
     -   **Partner/Befektető:**  Szakmai validálás, piaci bemenettestek (kapcsolatok), stratégiai irányítás és tőke biztosítása.
 
