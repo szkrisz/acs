@@ -98,7 +98,7 @@ No build step, no backend, no installation required.
 | [Three.js](https://threejs.org/) | r158 | 3D warehouse visualization |
 | [Chart.js](https://www.chartjs.org/) | 4.4 | Sensor history charts |
 
-All assets loaded from CDN — no local dependencies required.
+All libraries are bundled locally in `lib/` — no internet connection required to run the demo.
 
 ---
 
