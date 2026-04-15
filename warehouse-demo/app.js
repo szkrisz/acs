@@ -16,7 +16,7 @@
 // ─────────────────────────────────────────────────────────────────────────────
 // CONSTANTS
 // ─────────────────────────────────────────────────────────────────────────────
-const WAREHOUSE = { W: 20, D: 10, H: 5 };
+const WAREHOUSE = { W: 20, D: 10, H: 6.25 };
 const NUM_HATCHES = 5;
 const NUM_SENSORS = 8;
 const UPDATE_INTERVAL_MS = 2500;
@@ -289,7 +289,9 @@ const WarehouseScene = (() => {
   let renderer, scene, camera, controls;
   let sensorMeshes = [];
   let hatchMeshes = [];
+  let hatchPivots = [];
   let doorMesh, doorPivot;
+  let doorStatusLight = null;
   let heatmapPlanes = [];
   let ventParticles = null;
   let clock;
@@ -300,13 +302,13 @@ const WarehouseScene = (() => {
     MAT.floor = new THREE.MeshLambertMaterial({ color: 0x3a3a3a });
     MAT.wallConcrete = new THREE.MeshLambertMaterial({ color: 0x2a2e38 });
     MAT.wallCool = new THREE.MeshLambertMaterial({ color: 0x1a2a3a });
-    MAT.ceiling = new THREE.MeshLambertMaterial({ color: 0x1e2230 });
+    MAT.ceiling = new THREE.MeshLambertMaterial({ color: 0x88aacc, transparent: true, opacity: 0.18, side: THREE.DoubleSide });
     MAT.wood = new THREE.MeshLambertMaterial({ color: 0x8b5e3c });
     MAT.woodDark = new THREE.MeshLambertMaterial({ color: 0x6b4423 });
     MAT.door = new THREE.MeshLambertMaterial({ color: 0x607d8b });
     MAT.doorFrame = new THREE.MeshLambertMaterial({ color: 0x455a64 });
     MAT.hatchOpen = new THREE.MeshLambertMaterial({ color: 0x0d2a40, transparent: true, opacity: 0.5 });
-    MAT.hatchClosed = new THREE.MeshLambertMaterial({ color: 0x2a3a4a });
+    MAT.hatchClosed = new THREE.MeshLambertMaterial({ color: 0x2a3a4a, transparent: true, opacity: 1.0 });
     MAT.ventGlow = new THREE.MeshBasicMaterial({ color: 0x00b0ff, transparent: true, opacity: 0.25 });
     MAT.wireframe = new THREE.MeshBasicMaterial({ color: 0x4a6a8a, wireframe: true });
   }
@@ -334,6 +336,9 @@ const WarehouseScene = (() => {
 
     // Left wall (cooling wall) at x = -W/2
     buildCoolingWall(-W / 2, H, D);
+
+    // Hatches on back/left long wall near roof
+    buildHatches();
 
     // Right wall (door wall) at x = +W/2
     buildDoorWall(W / 2, H, D);
@@ -372,41 +377,72 @@ const WarehouseScene = (() => {
     coolLight.position.set(x + 1, H * 0.6, 0);
     scene.add(coolLight);
 
-    // Build hatches
-    buildHatches(x, H, D);
+    // Cooling vent holes arranged in a grid on the inner face of the end wall
+    const ventRows = 3, ventCols = 5;
+    const ventW = 0.5, ventH = 0.5;
+    for (let r = 0; r < ventRows; r++) {
+      for (let c = 0; c < ventCols; c++) {
+        const vz = -D / 2 + (D / (ventCols + 1)) * (c + 1);
+        const vy = 0.8 + r * (H * 0.28);
+
+        // Dark rectangle simulating the vent opening
+        const holeGeo = new THREE.BoxGeometry(0.06, ventH, ventW);
+        const holeMat = new THREE.MeshBasicMaterial({ color: 0x000510 });
+        const hole = new THREE.Mesh(holeGeo, holeMat);
+        hole.position.set(x + 0.13, vy, vz);
+        scene.add(hole);
+
+        // Blue glow to indicate active cooling airflow
+        const glowPlaneGeo = new THREE.PlaneGeometry(ventW * 0.8, ventH * 0.8);
+        const glowPlaneMat = new THREE.MeshBasicMaterial({ color: 0x00d4ff, transparent: true, opacity: 0.45 });
+        const glowPlane = new THREE.Mesh(glowPlaneGeo, glowPlaneMat);
+        glowPlane.rotation.y = -Math.PI / 2;
+        glowPlane.position.set(x + 0.15, vy, vz);
+        scene.add(glowPlane);
+      }
+    }
   }
 
-  function buildHatches(wallX, H, D) {
-    const rows = 1;
-    const cols = NUM_HATCHES;
-    const hatchW = 0.8;
+  function buildHatches() {
+    const W = WAREHOUSE.W, D = WAREHOUSE.D, H = WAREHOUSE.H;
+    const wallZ = -D / 2;         // back / left long-side wall
+    const hatchW = 1.2;
     const hatchH = 0.9;
-    const spacing = D / (cols + 1);
+    // Spread hatches evenly across most of the wall length
+    const usableW = W - 4;
+    const spacing = usableW / (NUM_HATCHES - 1);
+    const yTop = H - 0.2;         // near roof – hinge point
+    const yCenter = yTop - hatchH / 2;
 
-    for (let i = 0; i < cols; i++) {
-      const zPos = -D / 2 + spacing * (i + 1);
-      const yPos = H * 0.55;
+    for (let i = 0; i < NUM_HATCHES; i++) {
+      const xPos = -W / 2 + 2 + spacing * i;
 
-      // Hatch frame
-      const frameGeo = new THREE.BoxGeometry(0.05, hatchH + 0.1, hatchW + 0.1);
+      // Hatch frame (mounted flush on the inner wall face)
+      const frameGeo = new THREE.BoxGeometry(hatchW + 0.12, hatchH + 0.12, 0.08);
       const frame = new THREE.Mesh(frameGeo, new THREE.MeshLambertMaterial({ color: 0x2255aa }));
-      frame.position.set(wallX + 0.25, yPos, zPos);
+      frame.position.set(xPos, yCenter, wallZ + 0.12);
       scene.add(frame);
 
-      // Hatch panel
-      const hatchGeo = new THREE.BoxGeometry(0.06, hatchH, hatchW);
+      // Vent glow visible through the opening when hatch is open
+      const ventGeo = new THREE.PlaneGeometry(hatchW * 0.85, hatchH * 0.85);
+      const vent = new THREE.Mesh(ventGeo, MAT.ventGlow.clone());
+      vent.position.set(xPos, yCenter, wallZ + 0.06);
+      scene.add(vent);
+
+      // Pivot group at the top hinge of the hatch (inside face of wall)
+      const pivot = new THREE.Group();
+      pivot.position.set(xPos, yTop, wallZ + 0.16);
+      scene.add(pivot);
+
+      // Hatch panel hanging down from pivot
+      const hatchGeo = new THREE.BoxGeometry(hatchW, hatchH, 0.07);
       const hatchMat = MAT.hatchClosed.clone();
       const hatch = new THREE.Mesh(hatchGeo, hatchMat);
-      hatch.position.set(wallX + 0.28, yPos, zPos);
-      scene.add(hatch);
-      hatchMeshes.push(hatch);
+      hatch.position.set(0, -hatchH / 2, 0);
+      pivot.add(hatch);
 
-      // Vent glow behind hatch
-      const ventGeo = new THREE.PlaneGeometry(hatchW * 0.8, hatchH * 0.8);
-      const vent = new THREE.Mesh(ventGeo, MAT.ventGlow.clone());
-      vent.rotation.y = Math.PI / 2;
-      vent.position.set(wallX + 0.35, yPos, zPos);
-      scene.add(vent);
+      hatchPivots.push(pivot);
+      hatchMeshes.push(hatch);
     }
   }
 
@@ -440,6 +476,18 @@ const WarehouseScene = (() => {
     doorMesh = new THREE.Mesh(doorGeo, MAT.door);
     doorMesh.position.set(0, doorH / 2, doorW / 2);
     doorPivot.add(doorMesh);
+
+    // Door status indicator light above the door frame (green = closed, orange = open)
+    const statusGeo = new THREE.SphereGeometry(0.2, 12, 12);
+    doorStatusLight = new THREE.Mesh(statusGeo, new THREE.MeshBasicMaterial({ color: 0x00ff44 }));
+    doorStatusLight.position.set(x + 0.1, doorH + 0.55, 0);
+    scene.add(doorStatusLight);
+
+    const statusHaloGeo = new THREE.SphereGeometry(0.34, 12, 12);
+    const statusHalo = new THREE.Mesh(statusHaloGeo, new THREE.MeshBasicMaterial({
+      color: 0x00ff44, transparent: true, opacity: 0.22
+    }));
+    doorStatusLight.add(statusHalo);
   }
 
   function buildBoxStacks() {
@@ -550,10 +598,12 @@ const WarehouseScene = (() => {
   }
 
   function updateHatchVisuals() {
-    hatchMeshes.forEach((hatch, i) => {
+    hatchPivots.forEach((pivot, i) => {
       const pct = state.hatches[i] / 100;
-      // Scale Y to show open gap
-      hatch.scale.y = 1 - pct * 0.85;
+      // Rotate the hatch flap: 0 = closed (flat against wall), π/2 = fully open (pointing into room)
+      pivot.rotation.x = lerp(pivot.rotation.x, pct * (Math.PI / 2), 0.08);
+      // Update hatch panel material
+      const hatch = hatchMeshes[i];
       hatch.material.color.setHSL(0.58, 0.8, 0.1 + pct * 0.3);
       hatch.material.opacity = 1 - pct * 0.5;
     });
@@ -563,6 +613,16 @@ const WarehouseScene = (() => {
     if (!doorPivot) return;
     const targetAngle = state.door.open ? -Math.PI / 2 : 0;
     doorPivot.rotation.y = lerp(doorPivot.rotation.y, targetAngle, 0.05);
+
+    // Update door status indicator: green = closed, orange = open
+    if (doorStatusLight) {
+      const isClosed = Math.abs(doorPivot.rotation.y) < 0.15;
+      const color = isClosed ? 0x00ff44 : 0xff6600;
+      doorStatusLight.material.color.setHex(color);
+      if (doorStatusLight.children[0]) {
+        doorStatusLight.children[0].material.color.setHex(color);
+      }
+    }
   }
 
   function updateSensorVisuals() {
